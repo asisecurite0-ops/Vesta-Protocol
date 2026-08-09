@@ -1,4 +1,4 @@
-import { TONTINE_FACTORY_ABI } from "./abis";
+import { TontineFactoryABI } from "./abis";
 
 export const TONTINE_FACTORY_ADDRESS = "0xcB7cf5B877f60F0251a23b6A4436825d58BDE631" as const;
-export { TONTINE_FACTORY_ABI };
+export { TontineFactoryABI };
