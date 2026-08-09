@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Multi Time Zone Digital Clock</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#06b6d4;--text:#e6eef6}
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;
+      background:linear-gradient(180deg,#071029 0%, #08121a 100%);
+      color:var(--text);
+      min-height:100vh;
+      display:flex;
+      align-items:flex-start;
+      justify-content:center;
+      padding:28px;
+      gap:20px;
+    }
+    .app{
+      width:100%;
+      max-width:960px;
+    }
+    header{
+      display:flex;
+      gap:16px;
+      align-items:center;
+      margin-bottom:18px;
+    }
+    header h1{margin:0;font-size:20px}
+    .controls{
+      margin-left:auto;
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+    .controls label{font-size:14px;opacity:.9}
+    .controls input[type="text"]{
+      padding:8px 10px;
+      border-radius:8px;
+      border:1px solid rgba(255,255,255,0.06);
+      background:#071126;
+      color:var(--text);
+      min-width:220px;
+    }
+    .controls button{
+      padding:8px 12px;
+      border-radius:8px;
+      border:none;
+      background:var(--accent);
+      color:#042022;
+      font-weight:600;
+      cursor:pointer;
+    }
+    main{
+      display:grid;
+      grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
+      gap:14px;
+    }
+    .clock{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+      border:1px solid rgba(255,255,255,0.03);
+      padding:14px;
+      border-radius:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .tz-name{display:flex;justify-content:space-between;align-items:center}
+    .tz-name .name{font-weight:700}
+    .time{
+      font-variant-numeric:tabular-nums;
+      font-size:28px;
+      letter-spacing:0.6px;
+    }
+    .meta{font-size:13px; opacity:.85}
+    .actions{display:flex;gap:8px}
+    .btn-remove{
+      margin-left:auto;
+      background:transparent;color:#ffb4b4;border:1px solid rgba(255,180,180,0.06);
+      padding:6px 8px;border-radius:8px;cursor:pointer;
+    }
+    footer{margin-top:18px;font-size:12px;opacity:.8}
+    @media (max-width:480px){
+      header{flex-direction:column;align-items:flex-start;gap:10px}
+      .controls{width:100%}
+      .controls input[type=text]{width:100%}
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Multi Time Zone Clock">
+    <header>
+      <h1>Digital Clocks — Multiple Time Zones</h1>
+      <div class="controls" aria-hidden="false">
+        <label for="tz-input" style="display:none">Add timezone</label>
+        <input id="tz-input" list="tz-list" placeholder="Add time zone (e.g. Europe/Paris or America/New_York)">
+        <datalist id="tz-list">
+          <option>UTC</option>
+          <option>Europe/London</option>
+          <option>Europe/Paris</option>
+          <option>Europe/Berlin</option>
+          <option>America/New_York</option>
+          <option>America/Chicago</option>
+          <option>America/Denver</option>
+          <option>America/Los_Angeles</option>
+          <option>Asia/Tokyo</option>
+          <option>Asia/Shanghai</option>
+          <option>Asia/Kolkata</option>
+          <option>Australia/Sydney</option>
+        </datalist>
+        <button id="add-btn">Add</button>
+        <label style="display:flex;align-items:center;gap:6px;margin-left:8px">
+          <input id="hourToggle" type="checkbox"> 24h
+        </label>
+      </div>
+    </header>
+
+    <main id="clocks" aria-live="polite"></main>
+
+    <footer>
+      Tip: Use IANA time zone names (e.g. "Europe/Paris"). The browser validates the zone.
+      The list of commonly used zones is suggested in the input dropdown.
+    </footer>
+  </div>
+
+  <script>
+    (function(){
+      const defaultZones = [
+        'UTC',
+        'Europe/Paris',
+        'Europe/London',
+        'America/New_York',
+        'America/Los_Angeles',
+        'Asia/Tokyo',
+        'Australia/Sydney'
+      ];
+
+      const storageKey = 'multi-tz-clocks-v1';
+      let zones = loadZones();
+      const clocksEl = document.getElementById('clocks');
+      const input = document.getElementById('tz-input');
+      const addBtn = document.getElementById('add-btn');
+      const hourToggle = document.getElementById('hourToggle');
+
+      function loadZones(){
+        try {
+          const raw = localStorage.getItem(storageKey);
+          if(raw) return JSON.parse(raw);
+        } catch(e){}
+        return defaultZones.slice();
+      }
+
+      function saveZones(){
+        try{ localStorage.setItem(storageKey, JSON.stringify(zones)); } catch(e){}
+      }
+
+      function isValidTimeZone(tz){
+        try {
+          Intl.DateTimeFormat(undefined, {timeZone: tz});
+          return true;
+        } catch(e){
+          return false;
+        }
+      }
+
+      function render(){
+        clocksEl.innerHTML = '';
+        zones.forEach(zone => clocksEl.appendChild(createClockCard(zone)));
+      }
+
+      function createClockCard(zone){
+        const card = document.createElement('section');
+        card.className = 'clock';
+        card.setAttribute('data-zone', zone);
+
+        const tzName = document.createElement('div');
+        tzName.className = 'tz-name';
+        const nameSpan = document.createElement('div');
+        nameSpan.className = 'name';
+        nameSpan.textContent = zone;
+        tzName.appendChild(nameSpan);
+
+        const remove = document.createElement('button');
+        remove.className = 'btn-remove';
+        remove.textContent = 'Remove';
+        remove.title = 'Remove this clock';
+        remove.addEventListener('click', () => {
+          zones = zones.filter(z => z !== zone);
+          saveZones();
+          render();
+        });
+        tzName.appendChild(remove);
+
+        const timeDiv = document.createElement('div');
+        timeDiv.className = 'time';
+        timeDiv.textContent = '—:—:—';
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = '';
+
+        card.appendChild(tzName);
+        card.appendChild(timeDiv);
+        card.appendChild(meta);
+
+        // store references for updates
+        card._timeEl = timeDiv;
+        card._metaEl = meta;
+        card._zone = zone;
+        return card;
+      }
+
+      function updateAll(){
+        const now = new Date();
+        const use24 = hourToggle.checked;
+        document.querySelectorAll('.clock').forEach(card => {
+          const tz = card._zone;
+          const fmt = new Intl.DateTimeFormat(undefined, {
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            hour12: !use24, timeZone: tz
+          });
+          const timeStr = fmt.format(now);
+          // For timezone name/offset show short name (may be "GMT+2" or "CEST")
+          const nameFmt = new Intl.DateTimeFormat(undefined, {
+            timeZone: tz, timeZoneName: 'short'
+          });
+          const parts = nameFmt.formatToParts(now);
+          const tzNamePart = parts.find(p => p.type === 'timeZoneName');
+          const tzName = tzNamePart ? tzNamePart.value : '';
+
+          // Build offset string using resolvedOptions().timeZone isn't enough.
+          // Use Intl.DateTimeFormat with hour12 false to get numeric time and then compute offset difference
+          let offsetStr = '';
+          try {
+            // Compute offset by comparing the locale time with UTC using formatted hour/min, then parse difference
+            // Simpler: use Date toLocaleString for UTC and for zone, get difference in minutes:
+            const utcStr = new Intl.DateTimeFormat('en-US', {
+              year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'UTC'
+            }).format(now);
+            const zoneStr = new Intl.DateTimeFormat('en-US', {
+              year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:tz
+            }).format(now);
+            const utcDate = new Date(utcStr + ' UTC');
+            // The zoneStr parsed as local will represent the same instant in zone local time; construct as if it's UTC to compute offset:
+            const zoneDate = new Date(zoneStr + ' UTC');
+            const diffMin = (zoneDate - utcDate) / 60000;
+            const sign = diffMin >= 0 ? '+' : '-';
+            const absMin = Math.abs(Math.round(diffMin));
+            const hh = String(Math.floor(absMin/60)).padStart(2,'0');
+            const mm = String(absMin%60).padStart(2,'0');
+            offsetStr = `UTC${sign}${hh}:${mm}`;
+          } catch(e){
+            offsetStr = '';
+          }
+
+          card._timeEl.textContent = timeStr;
+          card._metaEl.textContent = [tzName, offsetStr].filter(Boolean).join(' — ');
+        });
+      }
+
+      // initial render & updates
+      render();
+      updateAll();
+      setInterval(updateAll, 1000);
+
+      // add btn handler
+      addBtn.addEventListener('click', () => {
+        const val = input.value.trim();
+        if(!val) return;
+        if(!isValidTimeZone(val)){
+          alert('Invalid time zone name. Use an IANA time zone like "Europe/Paris" or "America/New_York".');
+          return;
+        }
+        if(zones.includes(val)){
+          input.value = '';
+          return;
+        }
+        zones.push(val);
+        saveZones();
+        render();
+        input.value = '';
+        updateAll();
+      });
+
+      // allow Enter on input to add
+      input.addEventListener('keydown', e => { if(e.key === 'Enter') addBtn.click(); });
+
+      // toggle format immediate update
+      hourToggle.addEventListener('change', updateAll);
+
+      // expose for debug (optional)
+      window.multiTZ = {get zones(){return zones}, add(zone){ if(isValidTimeZone(zone)){ zones.push(zone); saveZones(); render(); updateAll(); }}};
+
+    })();
+  </script>
+</body>
+</html>
